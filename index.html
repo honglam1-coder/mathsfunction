@@ -31,10 +31,7 @@
       position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%);
       background: #111; color:#fff; padding:6px 10px; border-radius: 6px; font-size: 12px;
       opacity: 0; transition: opacity .2s ease;
-      max-width: 92vw;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      max-width: 92vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     .toast.show { opacity: 0.95; }
   </style>
@@ -44,67 +41,53 @@
     <textarea id="input" placeholder="Type or use the keys..." oninput="updatePreview()"></textarea>
     <div class="preview" id="preview"></div>
     <div class="copyrow">
-      <button class="btn-copy" onclick="copyUnicode()">Copy</button>
+      <button class="btn-copy" onclick="copyPretty()">Copy</button>
       <button class="btn-send" onclick="sendPublish()">Send</button>
     </div>
 
     <div class="wrap">
       <div class="grid">
-        <div class="btn" onclick="sendInsert(' + ')">+</div>
-        <div class="btn" onclick="sendInsert(' - ')">−</div>
-        <div class="btn" onclick="sendInsert('\\times')">×</div>
-        <div class="btn" onclick="sendInsert(' : ')">:</div>
+        <div class="btn" onclick="tap(' + ')">+</div>
+        <div class="btn" onclick="tap(' - ')">−</div>
+        <div class="btn" onclick="tap('\\times')">×</div>
+        <div class="btn" onclick="tap(' : ')">:</div>
 
-        <div class="btn" onclick="sendInsert(' = ')">=</div>
-        <div class="btn" onclick="sendInsert('\\neq')">≠</div>
-        <div class="btn" onclick="sendInsert('\\approx')">≈</div>
-        <div class="btn" onclick="sendInsert('\\equiv')">≡</div>
+        <div class="btn" onclick="tap(' = ')">=</div>
+        <div class="btn" onclick="tap('\\neq')">≠</div>
+        <div class="btn" onclick="tap('\\approx')">≈</div>
+        <div class="btn" onclick="tap('\\equiv')">≡</div>
 
-        <div class="btn" onclick="sendInsert('^{2}')">x²</div>
-        <div class="btn" onclick="sendInsert('^{3}')">x³</div>
-        <div class="btn" onclick="sendInsertMove('^{ }', -2)">xⁿ</div>
-        <div class="btn" onclick="sendInsertMove(' \\frac{}{}', -3)">a⁄b</div>
+        <div class="btn" onclick="tap('^{2}')">x²</div>
+        <div class="btn" onclick="tap('^{3}')">x³</div>
+        <div class="btn" onclick="tapMove('^{ }', -2)">xⁿ</div>
+        <div class="btn" onclick="tapMove(' \\frac{}{}', -3)">a⁄b</div>
 
-        <div class="btn" onclick="sendInsertMove(' \\sqrt{}', -1)">√</div>
-        <div class="btn" onclick="sendInsertMove(' \\sqrt[n]{}', -1)">ⁿ√</div>
-        <div class="btn" onclick="sendInsert('\\circ')">°</div>
-        <div class="btn" onclick="sendInsert(' % ')">%</div>
+        <div class="btn" onclick="tapMove(' \\sqrt{}', -1)">√</div>
+        <div class="btn" onclick="tapMove(' \\sqrt[n]{}', -1)">ⁿ√</div>
+        <div class="btn" onclick="tap('\\circ')">°</div>
+        <div class="btn" onclick="tap(' % ')">%</div>
 
-        <div class="btn" onclick="sendInsert('(')">(</div>
-        <div class="btn" onclick="sendInsert(')')">)</div>
-        <div class="btn" onclick="sendInsert('[')">[</div>
-        <div class="btn" onclick="sendInsert(']')">]</div>
+        <div class="btn" onclick="tap('(')">(</div>
+        <div class="btn" onclick="tap(')')">)</div>
+        <div class="btn" onclick="tap('[')">[</div>
+        <div class="btn" onclick="tap(']')">]</div>
       </div>
 
       <div class="row">
-        <div class="btn" onclick="sendInsert('.')">.</div>
-        <div class="btn" onclick="sendAction('back')">←</div>
-        <div class="btn" onclick="sendInsert(' ')">Space</div>
-        <div class="btn" onclick="sendAction('clear')">Clear</div>
+        <div class="btn" onclick="tap('.')">.</div>
+        <div class="btn" onclick="backspaceLocal()">←</div>
+        <div class="btn" onclick="tap(' ')">Space</div>
+        <div class="btn" onclick="clearLocal()">Clear</div>
       </div>
     </div>
   </div>
 
-  <div id="toast" class="toast">Copied</div>
+  <div id="toast" class="toast">Ready</div>
 
 <script>
-  /* ✅ IMPORTANT CHANGE: robust postMessage for Storyline nested iframes */
+  /* ✅ KEY: always post to window.top */
   function post(msg){
-    let sent = 0;
-    const targets = [];
-    try { if (window.parent && window.parent !== window) targets.push(window.parent); } catch(e) {}
-    try { if (window.top && window.top !== window) targets.push(window.top); } catch(e) {}
-    try { if (window.parent && window.parent.parent && window.parent.parent !== window.parent) targets.push(window.parent.parent); } catch(e) {}
-    try { if (window.parent && window.parent.parent && window.parent.parent.parent) targets.push(window.parent.parent.parent); } catch(e) {}
-
-    // de-duplicate
-    const uniq = [];
-    for (const t of targets) if (uniq.indexOf(t) === -1) uniq.push(t);
-
-    for (const t of uniq){
-      try { t.postMessage(msg, "*"); sent++; } catch(e) {}
-    }
-    return sent;
+    try { window.top.postMessage(msg, "*"); } catch(e) {}
   }
 
   function toast(msg){
@@ -116,8 +99,8 @@
   function updatePreview(){
     const src=document.getElementById('input').value;
     const prev=document.getElementById('preview');
-    prev.innerHTML=src.trim()?('\\('+src+'\\)'):'';
-    if(window.MathJax&&MathJax.typesetPromise) MathJax.typesetPromise([prev]);
+    prev.innerHTML = src.trim() ? ('\\(' + src + '\\)') : '';
+    if(window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise([prev]);
   }
 
   /* -------- LaTeX → Unicode (display) -------- */
@@ -130,18 +113,16 @@
     '\\circ':'°'
   };
   const VULGAR={'1/2':'½','1/3':'⅓','2/3':'⅔','1/4':'¼','3/4':'¾'};
-
   function toSup(s){return s.split('').map(ch=>SUP[ch]||ch).join('');}
   function toSub(s){return s.split('').map(ch=>SUB[ch]||ch).join('');}
-
   function readGroup(s,i){if(s[i]!=='{')return[null,i];let d=0,j=i,o='';for(;j<s.length;j++){let c=s[j];if(c==='{' ){if(d++>0)o+=c;}else if(c==='}'){if(--d===0){j++;break;}else o+=c;}else o+=c;}return[o,j];}
   function readBracket(s,i){if(s[i]!=='[')return[null,i];let d=0,j=i,o='';for(;j<s.length;j++){let c=s[j];if(c==='['){if(d++>0)o+=c;}else if(c===']'){if(--d===0){j++;break;}else o+=c;}else o+=c;}return[o,j];}
 
   function latexToUnicode(src){
     let s=(src||'').trim();
-    s = s.replace(/\^\{\s*o\s*\}/gi, '°');
-    s = s.replace(/\^\{\s*\\circ\s*\}/g, '°');
-    s = s.replace(/\^\\circ/g, '°');
+    s = s.replace(/\^\{\s*o\s*\}/gi, '°')
+         .replace(/\^\{\s*\\circ\s*\}/g, '°')
+         .replace(/\^\\circ/g, '°');
 
     Object.keys(OPS).forEach(k=>{ s=s.replaceAll(k,OPS[k]); });
 
@@ -190,15 +171,15 @@
     return out.replace(/\s+/g,' ').trim();
   }
 
-  /* -------- LaTeX → PLAIN (for conditions / Storyline vars) -------- */
+  /* -------- LaTeX → PLAIN (logic) -------- */
   function latexToPlain(src){
     let s = (src||'').trim();
 
-    // degrees
-    s = s.replace(/\^\{\s*o\s*\}/gi, 'deg');
-    s = s.replace(/\^\{\s*\\circ\s*\}/g, 'deg');
-    s = s.replace(/\^\\circ/g, 'deg');
-    s = s.replaceAll('\\circ','deg');
+    // degrees -> deg
+    s = s.replace(/\^\{\s*o\s*\}/gi, 'deg')
+         .replace(/\^\{\s*\\circ\s*\}/g, 'deg')
+         .replace(/\^\\circ/g, 'deg')
+         .replaceAll('\\circ','deg');
 
     // operators
     s = s.replaceAll('\\times','*')
@@ -208,50 +189,56 @@
          .replaceAll('\\approx','~')
          .replaceAll('\\equiv','=');
 
-    // keep \frac and \sqrt readable (basic, stable)
+    // frac / sqrt readable
     s = s.replace(/\\frac\{([\s\S]*?)\}\{([\s\S]*?)\}/g, '($1)/($2)');
     s = s.replace(/\\sqrt\{([\s\S]*?)\}/g, 'sqrt($1)');
     s = s.replace(/\\sqrt\[(.+?)\]\{([\s\S]*?)\}/g, 'root($1,$2)');
 
-    // remove spaces for stable comparisons
-    s = s.replace(/\s+/g,'');
-    return s;
+    // remove spaces
+    return s.replace(/\s+/g,'');
   }
 
-  /* -------- Copy -------- */
-  async function copyUnicode(){
+  /* -------- Copy pretty Unicode -------- */
+  async function copyPretty(){
     const src=document.getElementById('input').value;
     const text=latexToUnicode(src);
     try{
       if(navigator.clipboard && window.isSecureContext){
         await navigator.clipboard.writeText(text);
-      }else{
+      } else {
         const ta=document.createElement('textarea');
         ta.value=text; document.body.appendChild(ta);
         ta.focus(); ta.select();
         document.execCommand('copy');
         document.body.removeChild(ta);
       }
-      toast("Copied: "+text);
+      toast("Copied: " + text);
     }catch(e){ toast("Copy failed"); }
   }
 
-  /* -------- SEND (latest feature) -------- */
+  /* -------- SEND to Storyline -------- */
   function sendPublish(){
     const src = document.getElementById('input').value;
     const pretty = latexToUnicode(src);
     const plain  = latexToPlain(src);
 
-    const count = post({ type:"SL_PUBLISH", pretty, plain });
-    toast("Sent SL_PUBLISH → " + count + " frame(s)");
+    post({ type:"SL_PUBLISH", pretty, plain });
+    toast("Sent");
   }
 
-  /* -------- Keypad -------- */
-  function insertIntoLocal(t){
+  /* -------- Keypad local typing -------- */
+  function insertLocal(t){
     const input=document.getElementById('input');
     const s=input.selectionStart, e=input.selectionEnd;
     input.value=input.value.slice(0,s)+t+input.value.slice(e);
     input.selectionStart=input.selectionEnd=s+t.length;
+    updatePreview();
+  }
+  function tap(t){ insertLocal(t); }
+  function tapMove(t,m){
+    insertLocal(t);
+    const input=document.getElementById('input');
+    input.selectionStart=input.selectionEnd=input.selectionEnd+m;
     updatePreview();
   }
   function backspaceLocal(){
@@ -262,27 +249,6 @@
     updatePreview();
   }
   function clearLocal(){ document.getElementById('input').value=''; updatePreview(); }
-
-  function sendInsert(t){
-    insertIntoLocal(t);
-    const symbol = (latexToUnicode(t)||t);
-    const count = post({type:"SL_MATH_SYMBOL", action:"insert", symbol, target: null});
-    // optional: comment out if too noisy
-    // toast("Key → " + count + " frame(s)");
-  }
-  function sendInsertMove(t,m){
-    insertIntoLocal(t);
-    const input=document.getElementById('input');
-    input.selectionStart=input.selectionEnd=input.selectionEnd+m;
-    updatePreview();
-    const symbol = (latexToUnicode(t)||t);
-    post({type:"SL_MATH_SYMBOL", action:"insert", symbol, target: null});
-  }
-  function sendAction(k){
-    if(k==='back') backspaceLocal();
-    if(k==='clear') clearLocal();
-    post({type:"SL_MATH_SYMBOL", action:k, target:null});
-  }
 
   window.addEventListener('load', updatePreview);
 </script>
