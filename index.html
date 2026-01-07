@@ -50,23 +50,28 @@
         <div class="btn" onclick="sendInsert(' - ')">−</div>
         <div class="btn" onclick="sendInsert('\\times')">×</div>
         <div class="btn" onclick="sendInsert(' : ')">:</div>
+
         <div class="btn" onclick="sendInsert(' = ')">=</div>
         <div class="btn" onclick="sendInsert('\\neq')">≠</div>
         <div class="btn" onclick="sendInsert('\\approx')">≈</div>
         <div class="btn" onclick="sendInsert('\\equiv')">≡</div>
+
         <div class="btn" onclick="sendInsert('^{2}')">x²</div>
         <div class="btn" onclick="sendInsert('^{3}')">x³</div>
         <div class="btn" onclick="sendInsertMove('^{ }', -2)">xⁿ</div>
         <div class="btn" onclick="sendInsertMove(' \\frac{}{}', -3)">a⁄b</div>
+
         <div class="btn" onclick="sendInsertMove(' \\sqrt{}', -1)">√</div>
         <div class="btn" onclick="sendInsertMove(' \\sqrt[n]{}', -1)">ⁿ√</div>
-        <div class="btn" onclick="sendInsert(' < ')">&lt;</div>
-        <div class="btn" onclick="sendInsert(' > ')">&gt;</div>
+        <div class="btn" onclick="sendInsert('\\circ')">°</div>
+        <div class="btn" onclick="sendInsert(' % ')">%</div>
+
         <div class="btn" onclick="sendInsert('(')">(</div>
         <div class="btn" onclick="sendInsert(')')">)</div>
         <div class="btn" onclick="sendInsert('[')">[</div>
         <div class="btn" onclick="sendInsert(']')">]</div>
       </div>
+
       <div class="row">
         <div class="btn" onclick="sendInsert('.')">.</div>
         <div class="btn" onclick="sendAction('back')">←</div>
@@ -79,33 +84,155 @@
   <div id="toast" class="toast">Copied</div>
 
 <script>
-  const TARGET = null; // change to "MathEntry1" etc. if needed
+  // Option A: do NOT target by name; Storyline receiver inserts into last clicked Text Entry.
+  const TARGET = null;
+
   function post(msg){ try{ parent.postMessage(msg,"*"); }catch(e){} }
-  function toast(msg){ const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1000); }
-  function updatePreview(){ const src=document.getElementById('input').value;const prev=document.getElementById('preview');prev.innerHTML=src.trim()?('\\('+src+'\\)'):'';if(window.MathJax&&MathJax.typesetPromise)MathJax.typesetPromise([prev]); }
+  function toast(msg){
+    const t=document.getElementById('toast');
+    t.textContent=msg; t.classList.add('show');
+    setTimeout(()=>t.classList.remove('show'),1000);
+  }
+  function updatePreview(){
+    const src=document.getElementById('input').value;
+    const prev=document.getElementById('preview');
+    prev.innerHTML=src.trim()?('\\('+src+'\\)'):'';
+    if(window.MathJax&&MathJax.typesetPromise) MathJax.typesetPromise([prev]);
+  }
 
   /* -------- LaTeX → Unicode converter (nested safe) -------- */
   const SUP={'0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹','+':'⁺','-':'⁻','(':'⁽',')':'⁾','n':'ⁿ'};
   const SUB={'0':'₀','1':'₁','2':'₂','3':'₃','4':'₄','5':'₅','6':'₆','7':'₇','8':'₈','9':'₉','+':'₊','-':'₋','(':'₍',')':'₎'};
-  const OPS={'\\times':'×','\\cdot':'·','\\pm':'±','\\div':'÷','\\le':'≤','\\leq':'≤','\\ge':'≥','\\geq':'≥','\\neq':'≠','\\approx':'≈','\\equiv':'≡'};
+  const OPS={
+    '\\times':'×','\\cdot':'·','\\pm':'±','\\div':'÷',
+    '\\le':'≤','\\leq':'≤','\\ge':'≥','\\geq':'≥',
+    '\\neq':'≠','\\approx':'≈','\\equiv':'≡',
+    '\\circ':'°' // ✅ degree
+  };
   const VULGAR={'1/2':'½','1/3':'⅓','2/3':'⅔','1/4':'¼','3/4':'¾'};
   function toSup(s){return s.split('').map(ch=>SUP[ch]||ch).join('');}
   function toSub(s){return s.split('').map(ch=>SUB[ch]||ch).join('');}
   function readGroup(s,i){if(s[i]!=='{')return[null,i];let d=0,j=i,o='';for(;j<s.length;j++){let c=s[j];if(c==='{' ){if(d++>0)o+=c;}else if(c==='}'){if(--d===0){j++;break;}else o+=c;}else o+=c;}return[o,j];}
   function readBracket(s,i){if(s[i]!=='[')return[null,i];let d=0,j=i,o='';for(;j<s.length;j++){let c=s[j];if(c==='['){if(d++>0)o+=c;}else if(c===']'){if(--d===0){j++;break;}else o+=c;}else o+=c;}return[o,j];}
-  function latexToUnicode(src){let s=(src||'').trim();Object.keys(OPS).forEach(k=>{s=s.replaceAll(k,OPS[k]);});let i=0,out='';while(i<s.length){if(s.startsWith('\\frac',i)){i+=5;while(s[i]===' ')i++;let num='',den='';if(s[i]==='{'){let[n,ni]=readGroup(s,i);i=ni;num=latexToUnicode(n);while(s[i]===' ')i++;if(s[i]==='{'){let[d,di]=readGroup(s,i);i=di;den=latexToUnicode(d);}}let key=`${num}/${den}`.replace(/\s+/g,'');out+=(VULGAR[key]||num+'⁄'+den);continue;}if(s.startsWith('\\sqrt',i)){i+=5;while(s[i]===' ')i++;let idx=null;if(s[i]==='['){let[br,bi]=readBracket(s,i);i=bi;idx=br;}while(s[i]===' ')i++;let rad='';if(s[i]==='{'){let[rg,ri]=readGroup(s,i);i=ri;rad=latexToUnicode(rg);}out+=(idx?toSup(latexToUnicode(idx)):'')+'√('+rad+')';continue;}if(s[i]==='^'){i++;if(s[i]==='{'){let[g,gi]=readGroup(s,i);i=gi;out+=toSup(latexToUnicode(g));}else{out+=toSup(s[i]||'');i++;}continue;}if(s[i]==='_'){i++;if(s[i]==='{'){let[g,gi]=readGroup(s,i);i=gi;out+=toSub(latexToUnicode(g));}else{out+=toSub(s[i]||'');i++;}continue;}out+=s[i++];}return out.replace(/\s+/g,' ').trim();}
+
+  function latexToUnicode(src){
+    let s=(src||'').trim();
+
+    // ✅ normalize degree inputs:
+    // 4^{o}  -> 4°
+    // 4^{\circ} / 4^\circ -> 4°
+    s = s.replace(/\^\{\s*o\s*\}/gi, '°');
+    s = s.replace(/\^\{\s*\\circ\s*\}/g, '°');
+    s = s.replace(/\^\\circ/g, '°');
+
+    Object.keys(OPS).forEach(k=>{ s=s.replaceAll(k,OPS[k]); });
+
+    let i=0,out='';
+    while(i<s.length){
+      if(s.startsWith('\\frac',i)){
+        i+=5; while(s[i]===' ') i++;
+        let num='',den='';
+        if(s[i]==='{'){
+          let[n,ni]=readGroup(s,i); i=ni; num=latexToUnicode(n);
+          while(s[i]===' ') i++;
+          if(s[i]==='{'){ let[d,di]=readGroup(s,i); i=di; den=latexToUnicode(d); }
+        }
+        let key=`${num}/${den}`.replace(/\s+/g,'');
+        out += (VULGAR[key] || (num+'⁄'+den));
+        continue;
+      }
+
+      if(s.startsWith('\\sqrt',i)){
+        i+=5; while(s[i]===' ') i++;
+        let idx=null;
+        if(s[i]==='['){ let[br,bi]=readBracket(s,i); i=bi; idx=br; }
+        while(s[i]===' ') i++;
+        let rad='';
+        if(s[i]==='{'){ let[rg,ri]=readGroup(s,i); i=ri; rad=latexToUnicode(rg); }
+        out += (idx?toSup(latexToUnicode(idx)):'') + '√(' + rad + ')';
+        continue;
+      }
+
+      if(s[i]==='^'){
+        i++;
+        if(s[i]==='{'){ let[g,gi]=readGroup(s,i); i=gi; out+=toSup(latexToUnicode(g)); }
+        else { out+=toSup(s[i]||''); i++; }
+        continue;
+      }
+
+      if(s[i]==='_'){
+        i++;
+        if(s[i]==='{'){ let[g,gi]=readGroup(s,i); i=gi; out+=toSub(latexToUnicode(g)); }
+        else { out+=toSub(s[i]||''); i++; }
+        continue;
+      }
+
+      out += s[i++];
+    }
+    return out.replace(/\s+/g,' ').trim();
+  }
 
   /* -------- Copy / Send -------- */
-  async function copyUnicode(){const src=document.getElementById('input').value;const text=latexToUnicode(src);try{if(navigator.clipboard&&window.isSecureContext){await navigator.clipboard.writeText(text);}else{const ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.focus();ta.select();document.execCommand('copy');document.body.removeChild(ta);}toast("Copied: "+text);}catch(e){toast("Copy failed");}}
-  function sendUnicode(){const src=document.getElementById('input').value;const text=latexToUnicode(src);post({type:"LATEX_SET",value:text,target:TARGET});toast("Sent: "+text);}
+  async function copyUnicode(){
+    const src=document.getElementById('input').value;
+    const text=latexToUnicode(src);
+    try{
+      if(navigator.clipboard && window.isSecureContext){
+        await navigator.clipboard.writeText(text);
+      }else{
+        const ta=document.createElement('textarea');
+        ta.value=text; document.body.appendChild(ta);
+        ta.focus(); ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      toast("Copied: "+text);
+    }catch(e){ toast("Copy failed"); }
+  }
 
-  /* -------- Keypad -------- */
-  function insertIntoLocal(t){const input=document.getElementById('input');const s=input.selectionStart,e=input.selectionEnd;input.value=input.value.slice(0,s)+t+input.value.slice(e);input.selectionStart=input.selectionEnd=s+t.length;updatePreview();}
-  function backspaceLocal(){const input=document.getElementById('input');const s=input.selectionStart,e=input.selectionEnd;if(s!==e){input.value=input.value.slice(0,s)+input.value.slice(e);input.selectionStart=input.selectionEnd=s;}else if(s>0){input.value=input.value.slice(0,s-1)+input.value.slice(e);input.selectionStart=input.selectionEnd=s-1;}updatePreview();}
-  function clearLocal(){document.getElementById('input').value='';updatePreview();}
-  function sendInsert(t){insertIntoLocal(t);}
-  function sendInsertMove(t,m){insertIntoLocal(t);const input=document.getElementById('input');input.selectionStart=input.selectionEnd=input.selectionEnd+m;updatePreview();}
-  function sendAction(k){if(k==='back')backspaceLocal();if(k==='clear')clearLocal();}
+  function sendUnicode(){
+    const src=document.getElementById('input').value;
+    const text=latexToUnicode(src);
+    // Option A: target stays null; receiver picks last-clicked Text Entry
+    post({type:"LATEX_SET", value:text, target: TARGET});
+    toast("Sent: "+text);
+  }
+
+  /* -------- Keypad (Option A: also send to Storyline on keypress) -------- */
+  function insertIntoLocal(t){
+    const input=document.getElementById('input');
+    const s=input.selectionStart, e=input.selectionEnd;
+    input.value=input.value.slice(0,s)+t+input.value.slice(e);
+    input.selectionStart=input.selectionEnd=s+t.length;
+    updatePreview();
+  }
+  function backspaceLocal(){
+    const input=document.getElementById('input');
+    const s=input.selectionStart, e=input.selectionEnd;
+    if(s!==e){ input.value=input.value.slice(0,s)+input.value.slice(e); input.selectionStart=input.selectionEnd=s; }
+    else if(s>0){ input.value=input.value.slice(0,s-1)+input.value.slice(e); input.selectionStart=input.selectionEnd=s-1; }
+    updatePreview();
+  }
+  function clearLocal(){ document.getElementById('input').value=''; updatePreview(); }
+
+  function sendInsert(t){
+    insertIntoLocal(t);
+    // Insert into Storyline immediately (unicode preferred)
+    post({type:"SL_MATH_SYMBOL", action:"insert", symbol: (latexToUnicode(t)||t), target: null});
+  }
+  function sendInsertMove(t,m){
+    insertIntoLocal(t);
+    const input=document.getElementById('input');
+    input.selectionStart=input.selectionEnd=input.selectionEnd+m;
+    updatePreview();
+    post({type:"SL_MATH_SYMBOL", action:"insert", symbol: (latexToUnicode(t)||t), target: null});
+  }
+  function sendAction(k){
+    if(k==='back') backspaceLocal();
+    if(k==='clear') clearLocal();
+    post({type:"SL_MATH_SYMBOL", action:k, target:null});
+  }
+
   window.addEventListener('load', updatePreview);
 </script>
 </body>
