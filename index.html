@@ -31,6 +31,10 @@
       position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%);
       background: #111; color:#fff; padding:6px 10px; border-radius: 6px; font-size: 12px;
       opacity: 0; transition: opacity .2s ease;
+      max-width: 92vw;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .toast.show { opacity: 0.95; }
   </style>
@@ -84,12 +88,31 @@
   <div id="toast" class="toast">Copied</div>
 
 <script>
-  function post(msg){ try{ parent.postMessage(msg,"*"); }catch(e){} }
+  /* ✅ IMPORTANT CHANGE: robust postMessage for Storyline nested iframes */
+  function post(msg){
+    let sent = 0;
+    const targets = [];
+    try { if (window.parent && window.parent !== window) targets.push(window.parent); } catch(e) {}
+    try { if (window.top && window.top !== window) targets.push(window.top); } catch(e) {}
+    try { if (window.parent && window.parent.parent && window.parent.parent !== window.parent) targets.push(window.parent.parent); } catch(e) {}
+    try { if (window.parent && window.parent.parent && window.parent.parent.parent) targets.push(window.parent.parent.parent); } catch(e) {}
+
+    // de-duplicate
+    const uniq = [];
+    for (const t of targets) if (uniq.indexOf(t) === -1) uniq.push(t);
+
+    for (const t of uniq){
+      try { t.postMessage(msg, "*"); sent++; } catch(e) {}
+    }
+    return sent;
+  }
+
   function toast(msg){
     const t=document.getElementById('toast');
     t.textContent=msg; t.classList.add('show');
     setTimeout(()=>t.classList.remove('show'),1000);
   }
+
   function updatePreview(){
     const src=document.getElementById('input').value;
     const prev=document.getElementById('preview');
@@ -213,21 +236,17 @@
     }catch(e){ toast("Copy failed"); }
   }
 
-  /* -------- SEND (latest feature) --------
-     Sends ONE message with both pretty + plain:
-     Storyline receiver will:
-       - put pretty into last clicked Text Entry
-       - set 8_Ex1_BlankN_correct = plain
-  */
+  /* -------- SEND (latest feature) -------- */
   function sendPublish(){
     const src = document.getElementById('input').value;
     const pretty = latexToUnicode(src);
     const plain  = latexToPlain(src);
-    post({ type:"SL_PUBLISH", pretty, plain });
-    toast("Sent");
+
+    const count = post({ type:"SL_PUBLISH", pretty, plain });
+    toast("Sent SL_PUBLISH → " + count + " frame(s)");
   }
 
-  /* -------- Keypad (Option A: insert into Text Entry live) -------- */
+  /* -------- Keypad -------- */
   function insertIntoLocal(t){
     const input=document.getElementById('input');
     const s=input.selectionStart, e=input.selectionEnd;
@@ -246,15 +265,18 @@
 
   function sendInsert(t){
     insertIntoLocal(t);
-    // Live insert unicode into last-clicked text entry (optional UX)
-    post({type:"SL_MATH_SYMBOL", action:"insert", symbol: (latexToUnicode(t)||t), target: null});
+    const symbol = (latexToUnicode(t)||t);
+    const count = post({type:"SL_MATH_SYMBOL", action:"insert", symbol, target: null});
+    // optional: comment out if too noisy
+    // toast("Key → " + count + " frame(s)");
   }
   function sendInsertMove(t,m){
     insertIntoLocal(t);
     const input=document.getElementById('input');
     input.selectionStart=input.selectionEnd=input.selectionEnd+m;
     updatePreview();
-    post({type:"SL_MATH_SYMBOL", action:"insert", symbol: (latexToUnicode(t)||t), target: null});
+    const symbol = (latexToUnicode(t)||t);
+    post({type:"SL_MATH_SYMBOL", action:"insert", symbol, target: null});
   }
   function sendAction(k){
     if(k==='back') backspaceLocal();
