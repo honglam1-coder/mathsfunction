@@ -41,7 +41,7 @@
     <div class="preview" id="preview"></div>
     <div class="copyrow">
       <button class="btn-copy" onclick="copyUnicode()">Copy</button>
-      <button class="btn-send" onclick="sendUnicode()">Send</button>
+      <button class="btn-send" onclick="sendPublish()">Send</button>
     </div>
 
     <div class="wrap">
@@ -84,9 +84,6 @@
   <div id="toast" class="toast">Copied</div>
 
 <script>
-  // Option A: do NOT target by name; Storyline receiver inserts into last clicked Text Entry.
-  const TARGET = null;
-
   function post(msg){ try{ parent.postMessage(msg,"*"); }catch(e){} }
   function toast(msg){
     const t=document.getElementById('toast');
@@ -100,27 +97,25 @@
     if(window.MathJax&&MathJax.typesetPromise) MathJax.typesetPromise([prev]);
   }
 
-  /* -------- LaTeX → Unicode converter (nested safe) -------- */
+  /* -------- LaTeX → Unicode (display) -------- */
   const SUP={'0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹','+':'⁺','-':'⁻','(':'⁽',')':'⁾','n':'ⁿ'};
   const SUB={'0':'₀','1':'₁','2':'₂','3':'₃','4':'₄','5':'₅','6':'₆','7':'₇','8':'₈','9':'₉','+':'₊','-':'₋','(':'₍',')':'₎'};
   const OPS={
     '\\times':'×','\\cdot':'·','\\pm':'±','\\div':'÷',
     '\\le':'≤','\\leq':'≤','\\ge':'≥','\\geq':'≥',
     '\\neq':'≠','\\approx':'≈','\\equiv':'≡',
-    '\\circ':'°' // ✅ degree
+    '\\circ':'°'
   };
   const VULGAR={'1/2':'½','1/3':'⅓','2/3':'⅔','1/4':'¼','3/4':'¾'};
+
   function toSup(s){return s.split('').map(ch=>SUP[ch]||ch).join('');}
   function toSub(s){return s.split('').map(ch=>SUB[ch]||ch).join('');}
+
   function readGroup(s,i){if(s[i]!=='{')return[null,i];let d=0,j=i,o='';for(;j<s.length;j++){let c=s[j];if(c==='{' ){if(d++>0)o+=c;}else if(c==='}'){if(--d===0){j++;break;}else o+=c;}else o+=c;}return[o,j];}
   function readBracket(s,i){if(s[i]!=='[')return[null,i];let d=0,j=i,o='';for(;j<s.length;j++){let c=s[j];if(c==='['){if(d++>0)o+=c;}else if(c===']'){if(--d===0){j++;break;}else o+=c;}else o+=c;}return[o,j];}
 
   function latexToUnicode(src){
     let s=(src||'').trim();
-
-    // ✅ normalize degree inputs:
-    // 4^{o}  -> 4°
-    // 4^{\circ} / 4^\circ -> 4°
     s = s.replace(/\^\{\s*o\s*\}/gi, '°');
     s = s.replace(/\^\{\s*\\circ\s*\}/g, '°');
     s = s.replace(/\^\\circ/g, '°');
@@ -172,7 +167,35 @@
     return out.replace(/\s+/g,' ').trim();
   }
 
-  /* -------- Copy / Send -------- */
+  /* -------- LaTeX → PLAIN (for conditions / Storyline vars) -------- */
+  function latexToPlain(src){
+    let s = (src||'').trim();
+
+    // degrees
+    s = s.replace(/\^\{\s*o\s*\}/gi, 'deg');
+    s = s.replace(/\^\{\s*\\circ\s*\}/g, 'deg');
+    s = s.replace(/\^\\circ/g, 'deg');
+    s = s.replaceAll('\\circ','deg');
+
+    // operators
+    s = s.replaceAll('\\times','*')
+         .replaceAll('\\cdot','*')
+         .replaceAll('\\div','/')
+         .replaceAll('\\neq','!=')
+         .replaceAll('\\approx','~')
+         .replaceAll('\\equiv','=');
+
+    // keep \frac and \sqrt readable (basic, stable)
+    s = s.replace(/\\frac\{([\s\S]*?)\}\{([\s\S]*?)\}/g, '($1)/($2)');
+    s = s.replace(/\\sqrt\{([\s\S]*?)\}/g, 'sqrt($1)');
+    s = s.replace(/\\sqrt\[(.+?)\]\{([\s\S]*?)\}/g, 'root($1,$2)');
+
+    // remove spaces for stable comparisons
+    s = s.replace(/\s+/g,'');
+    return s;
+  }
+
+  /* -------- Copy -------- */
   async function copyUnicode(){
     const src=document.getElementById('input').value;
     const text=latexToUnicode(src);
@@ -190,15 +213,21 @@
     }catch(e){ toast("Copy failed"); }
   }
 
-  function sendUnicode(){
-    const src=document.getElementById('input').value;
-    const text=latexToUnicode(src);
-    // Option A: target stays null; receiver picks last-clicked Text Entry
-    post({type:"LATEX_SET", value:text, target: TARGET});
-    toast("Sent: "+text);
+  /* -------- SEND (latest feature) --------
+     Sends ONE message with both pretty + plain:
+     Storyline receiver will:
+       - put pretty into last clicked Text Entry
+       - set 8_Ex1_BlankN_correct = plain
+  */
+  function sendPublish(){
+    const src = document.getElementById('input').value;
+    const pretty = latexToUnicode(src);
+    const plain  = latexToPlain(src);
+    post({ type:"SL_PUBLISH", pretty, plain });
+    toast("Sent");
   }
 
-  /* -------- Keypad (Option A: also send to Storyline on keypress) -------- */
+  /* -------- Keypad (Option A: insert into Text Entry live) -------- */
   function insertIntoLocal(t){
     const input=document.getElementById('input');
     const s=input.selectionStart, e=input.selectionEnd;
@@ -217,7 +246,7 @@
 
   function sendInsert(t){
     insertIntoLocal(t);
-    // Insert into Storyline immediately (unicode preferred)
+    // Live insert unicode into last-clicked text entry (optional UX)
     post({type:"SL_MATH_SYMBOL", action:"insert", symbol: (latexToUnicode(t)||t), target: null});
   }
   function sendInsertMove(t,m){
